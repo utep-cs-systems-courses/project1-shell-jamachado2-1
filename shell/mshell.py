@@ -25,95 +25,26 @@ def path(args):
         program = "%s%s" % (dir, args[0])
         try:
             os.execve(program, args, os.environ)  # try to exec program
-            childPidCode = os.wait()
         except FileNotFoundError:                 # expected
             pass                                  # fail quitely
-        os.write(2, ("Child:    Could not exec %s\n" % args[0]).encode())
-        sys.exit(1)                               # terminate with error
+    #os.write(2, ("Child:    Could not exec %s\n" % args[0]).encode())
+    sys.exit(1)                               # terminate with error
 
-def redirectoryOUT(args):
-
-    user_input = user_input.split(args)
+def redirectory_out_in(user_input, out_in):
+    user_input = user_input.split(out_in)
     # Output redirection
-    if args == ">":    
-        os.close(1)                 # redirect child's stdout
-        os.open("mshell-output.txt", os.O_CREAT | os.O_WRONLY);
+    if out_in == ">":    
+        os.close(1)                          # redirect child's stdout
+        os.open(user_input[1].strip(), os.O_CREAT | os.O_WRONLY);
         os.set_inheritable(1, True)
         path(user_input[0].split())
-
-def redirectoryIN(args):
-    user_input = user_input.split(args)
     # Input redirection
-    if args == "<": 
-        os.close(0)                 # redirect child's stdin
-        os.open("mshell-input.txt", os.O_CREAT | os.O_RDONLY);
-        os.set_inheritable(fd, True)
+    else: 
+        os.close(0)                  # redirect child's stdin
+        os.open(user_input[1], os.O_CREAT | os.O_RDONLY);
+        os.set_inheritable(0, True)
         path(args[0].split())
         
-
-def pipes(args):
-    pid = os.getpid()
-    os.write(1, ("About to fork (pid:%d)\n" % pid).encode())
-    rc = os.fork()
-
-    if rc < 0:
-        os.write(2, ("for failed, returning %d\n" % rc).encode())
-        sys.exit(1)
-    elif rc == 0:
-        os.write(1, ("Child: My pid==%d. Parent's pid=%d\n" %(os.getpid(), pid)).encode())
-        args = user_input.split()
-
-        if "|" in user_input:
-            p = user_input.split("|")
-            pipe1 = pipe[0].split()
-            pipe2 = pipe[1].split()
-    
-            # Reading and writing pipe
-            pr,pw = os.pipe()
-            for f in (pr, pw):
-                os.set_inheritable(f, true)
-
-            # Forking child
-            pf = os.fork()
-            if pf < 0:
-                print("fork failed, returning %d\n" % pf, file=sys.stderr)
-                sys.exit(1)
-            if pf == 0:
-                os.close(1)
-                os.dup(pw)                  # redirect childs stdout
-                os.set_inheritible(1, True)
-                for fd in (pr, pw):
-                    os.close(fd)
-                path(pipe1)
-            else:                           # parent fork
-                os.close(0)
-                os.dup(pr)
-                os.set_inheritable(0, True)
-                for fd in (pw, pr):
-                    os.close(fd)
-                path(pipe2)
-
-def execute(args):
-    if user_input == "":
-        pass
-    elif user_input == "exit":
-        os.write(1, ("Process finished.\n").encode())
-        sys.exit(1)
-    elif user_input == "cd":
-        change_dir(args)
-    elif user_input == "ls":
-        list_dir()
-    elif user_input == ">":
-        redirectoryOUT(args)
-    elif user_input == "<":
-        redirectoryIN(args)
-    elif user_input == "|":
-        pipes(args)
-    #elif user_input not in commands:
-    #    print(user_input + ": command not valid")
-    #else:
-    #    print("valid command")
-
 
 if __name__ == '__main__':
     
@@ -124,6 +55,67 @@ if __name__ == '__main__':
             os.write(1, ("$ ").encode())
             try:
                 user_input = input()
-                execute(user_input)
             except EOFError:
                 sys.exit(1)
+
+
+        # Add your commands here ..
+        if user_input == "":
+            pass
+        if user_input == "exit":
+            os.write(1, ("Process finished.\n").encode())
+            sys.exit(1)
+        if user_input == "cd":
+            change_dir(user_input)
+        if user_input == "ls":
+            list_dir()
+        if user_input == ">":
+            redirectory_out_in(">", user_input)
+        if user_input == "<":
+            redirectory_out_in("<", user_input)
+
+        pid = os.getpid()
+        os.write(1, ("About to fork (pid:%d)\n" % pid).encode())
+        rc = os.fork()
+
+        if rc < 0:
+            os.write(2, ("for failed, returning %d\n" % rc).encode())
+            sys.exit(1)
+        elif rc == 0:
+            os.write(1, ("Child: My pid==%d. Parent's pid=%d\n" %(os.getpid(), pid)).encode())
+            args = user_input.split()
+
+            if "|" in user_input:
+                p = user_input.split("|")
+                pipe1 = p[0].split()
+                pipe2 = p[1].split()
+    
+                # Reading and writing pipe
+                pr,pw = os.pipe()
+                for f in (pr, pw):
+                    os.set_inheritable(f, True)
+
+                # Forking child
+                pf = os.fork()
+                if pf < 0:
+                    print("fork failed, returning %d\n" % pf, file=sys.stderr)
+                    sys.exit(1)
+                if pf == 0:
+                    os.close(1)
+                    os.dup(pw)                  # redirect childs stdout
+                    os.set_inheritable(1, True)
+
+                    for fd in (pr, pw):
+                        os.close(fd)
+                    path(pipe1)
+                else:                           # parent fork
+                    os.close(0)
+                    os.dup(pr)
+                    os.set_inheritable(0, True)
+                    for fd in (pw, pr):
+                        os.close(fd)
+                    path(pipe2)
+
+
+        else:
+            childPidCode = os.wait()
